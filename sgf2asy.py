@@ -61,13 +61,13 @@ def make_SGF_node(sgf_str='', index=[0]):		# ;W[ab] ;B[rs]
 			print 'Oops: length of sgf_node_str: ', len(sgf_node_str)
 		
 		new_node = make_node()
-		if len(sgf_node_str) == 2:
+		if len(sgf_node_str) == 2:	# 一个正常的坐标
 			new_node = make_node(color=color, 
 							x=sgf_node_str[0], 
 							y=sgf_node_str[1], 
 							comment='', 
 							children=list())
-		if len(sgf_node_str) < 2:
+		if len(sgf_node_str) < 2:	# 不正常，例如pass这一步
 			new_node = make_node(color=color, 
 							x='', 
 							y='', 
@@ -79,7 +79,7 @@ def make_SGF_node(sgf_str='', index=[0]):		# ;W[ab] ;B[rs]
 	else:
 		return None
 
-def make_sgf_tree(sgf_str='', index=[0], head=make_node()):
+def make_SGF_tree(sgf_str='', index=[0], head=make_node()):
 	current_node = head
 	# 遍历字符串
 	while True:
@@ -89,7 +89,7 @@ def make_sgf_tree(sgf_str='', index=[0], head=make_node()):
 			break
 		# 递归处理内层的括号对
 		elif sgf_str[index[0]] == '(':
-			make_sgf_tree(sgf_str, index, current_node)
+			make_SGF_tree(sgf_str, index, current_node)
 		# 取出需要的节点
 		else:
 			new_node = make_SGF_node(sgf_str, index)
@@ -107,10 +107,8 @@ def tree_to_SGF_str(head=make_node(), str_list=[]):
 		str_list.append('(')
 		str_list.append(';'+start['color']+'['+start['x']+start['y']+']')
 		if start['children']:
-			#str_list.append('(')
 			for i in start['children']:
 				tree_to_SGF_str(i, str_list)
-			#str_list.append(')')
 		str_list.append(')')
 
 # 希望对于每一个叶子都生成从跟到叶子的路径，这就是每一种可能性。
@@ -120,51 +118,61 @@ def tree_to_SGF_str(head=make_node(), str_list=[]):
 def pre_print():
     print "size(16cm,0);\nfor(int i = 0; i<19; ++i) {\n\tdraw((0,i)--(18,i), black+0.15mm);\n\tdraw((i,0)--(i,18), black+0.15mm);\n}\npair x1 = (3,3),x2 = (9,3),x3 = (15,3),x4 = (3,9),x5 = (9,9),x6 = (15,9),x7 = (3,15),x8 = (9,15),x9 = (15,15);\nfilldraw(circle(x1,0.1),black);\nfilldraw(circle(x2,0.1),black);\nfilldraw(circle(x3,0.1),black);\nfilldraw(circle(x4,0.1),black);\nfilldraw(circle(x5,0.1),black);\nfilldraw(circle(x6,0.1),black);\nfilldraw(circle(x7,0.1),black);\nfilldraw(circle(x8,0.1),black);\nfilldraw(circle(x9,0.1),black);\n"
 
+# 是否此坐标曾经被放置过？
+def wasOccupied(node=make_node(), exist_pair=[], pair_index=[-1]):
+	for index, pair in enumerate(exist_pair):
+		if pair['x'] == node['x'] and pair['y'] == node['y']:
+			pair_index[0] = index + 1	# NOTE 棋步从1计数，而列表从0计数
+			return True
+	return False
+
+# 这两个函数合成一个好了，下面使用时确定就行了
+def black_or_white(node=make_node()):
+	if node['color'] == 'B':
+		return 'black'
+	if node['color'] == 'W':
+		return 'white'
+	print 'Unknown Color: %s' % node['color']
+	return 'red'
+def label_black_or_white(node=make_node()):
+	if node['color'] == 'B':
+		return 'white'
+	if node['color'] == 'W':
+		return 'black'
+
 # 从根到叶子节点的一条路径
-def the_1_path(head=make_node(), pair_count=[0]):
+def the_1_path(head=make_node(), pair_count=[1], exist_pair=[], exist_pair_count=[-1]):
 	start = head
 	if start and start['x'] and start['y']:
-		if start['color'] == 'B':
-			print 'pair p%d=(%s, %s);' % ( \
+		#if start['color'] == 'B':
+			pair_index = [-1]
+			if wasOccupied(start, exist_pair, pair_index ):
+				print "filldraw(circle((0, %d),0.45), %s);" % ( \
+									exist_pair_count[0], black_or_white(start))
+				print "label(\"$%d$\",(0, %d), %s);" % ( \
+									pair_count[0], exist_pair_count[0], label_black_or_white(start))
+				print "label(\"$=%d$\",(1, %d), black);" % ( \
+									pair_index[0], exist_pair_count[0])
+				exist_pair_count[0] -= 1	# 往负数方向增长，因为要放在棋盘下方 FIXME change the name
+			else:
+				print 'pair p%d=(%s, %s);' % ( \
 									pair_count[0], \
 									ord(start['x'])-ord('a'), \
 									ord(start['y'])-ord('a'))
-			print "filldraw(circle(p%d, 0.45), black);" % pair_count[0]
-			print "label(\"$%d$\", p%d, white);" % ( \
+				print "filldraw(circle(p%d, 0.45), %s);" % (pair_count[0], black_or_white(start))
+				print "label(\"$%d$\", p%d, %s);" % ( \
 									pair_count[0], \
-									pair_count[0])
-		elif start['color'] == 'W':
-			print 'pair p%d=(%s, %s);' % ( \
-									pair_count[0], \
-									ord(start['x'])-ord('a'), \
-									ord(start['y'])-ord('a'))
-			print "filldraw(circle(p%d, 0.45), white);" % pair_count[0]
-			print "label(\"$%d$\", p%d, black);" % ( \
-									pair_count[0], \
-									pair_count[0])
+									pair_count[0], label_black_or_white(start))
+				exist_pair.append(start)
 
-		pair_count[0] += 1
 
-		if start['children']:
-			the_1_path(start['children'][0], pair_count)
 
-if 0 and __name__=='__main__':
-	sgf_file = open('example_sgf.txt','r')
-	sgf_list = []
-	for i in sgf_file.readlines():
-		sgf_list.append(i)
-	sgf_str = ''.join(sgf_list)
-	print sgf_str+'\n\n\n\n'
-	#sgf_str = '(;B[ab];X[GF](;W[cd]\n)(;W[de]\n(;B[ef])(;B[hi]))(;W[fg]))'
-	#print 'SGF String: \"' + sgf_str + '\"'
-	sgf_str_index = [0]
-	head = make_node()
+			pair_count[0] += 1
 
-	make_sgf_tree(sgf_str=sgf_str, index=sgf_str_index, head=head)
-	print '\nThe SGF Tree:'
-	print head
+			if start['children']:
+				the_1_path(start['children'][0], pair_count)
 
-if 1 and __name__=='__main__':
+if __name__=='__main__':
 	#sgf_str = '(;B[ab](;W[cd](;B[12];W[34]))(;W[de](;B[ef])(;B[hi]))(;W[fg]))'
 	sgf_file = open('igs.txt','r')
 	sgf_list = []
@@ -175,7 +183,7 @@ if 1 and __name__=='__main__':
 
 	sgf_str_index = [0]
 	head = make_node()
-	make_sgf_tree(sgf_str=sgf_str, index=sgf_str_index, head=head)
+	make_SGF_tree(sgf_str=sgf_str, index=sgf_str_index, head=head)
 	#sl = []
 	#tree_to_SGF_str(head['children'][0], sl)
 	#print 'tree to SGF:',''.join(sl)
